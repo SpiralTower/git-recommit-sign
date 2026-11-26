@@ -3,6 +3,7 @@
 set -Eeuo pipefail
 
 PROGRAM_NAME=${0##*/}
+UI_LANGUAGE=
 AUTHOR_NAME_SET=0
 AUTHOR_EMAIL_SET=0
 COMMITTER_NAME_SET=0
@@ -78,7 +79,7 @@ EOF
 }
 
 cancel_and_exit() {
-  printf 'Cancelled; no references changed.\n'
+  printf '%s\n' "$(ui_text cancel)"
   exit 0
 }
 
@@ -89,12 +90,340 @@ die() {
 
 usage_error() {
   printf '%s: %s\n' "$PROGRAM_NAME" "$*" >&2
-  printf 'Run %s --help for usage.\n' "$PROGRAM_NAME" >&2
+  if [[ "$UI_LANGUAGE" == zh ]]; then
+    printf '运行 %s --help 查看用法。\n' "$PROGRAM_NAME" >&2
+  else
+    printf 'Run %s --help for usage.\n' "$PROGRAM_NAME" >&2
+  fi
   exit 2
 }
 
 require_value() {
-  [[ $# -ge 2 && -n "$2" ]] || usage_error "$1 requires a value"
+  [[ $# -ge 2 && -n "$2" ]] ||
+    usage_error "$(ui_error selection_requires_value "$1")"
+}
+
+ui_text() {
+  local key=$1
+  shift
+  local template
+
+  if [[ "$UI_LANGUAGE" == zh ]]; then
+    case "$key" in
+      title) template='Git 提交批量改写与 OpenPGP 重签' ;;
+      cancel_option) template='q) 取消' ;;
+      back_option) template='b) 返回' ;;
+      selection_prompt) template='选择范围' ;;
+      one_commit) template='1) 单个提交' ;;
+      inclusive_range) template='2) 闭区间' ;;
+      all_commits) template='3) 全部提交' ;;
+      commit_prompt) template='提交' ;;
+      range_prompt) template='区间 (FROM..TO)' ;;
+      invalid_selection) template='无效选择。' ;;
+      author_filter_name) template='筛选作者姓名 (留空=任意)' ;;
+      author_filter_email) template='筛选作者邮箱 (留空=任意)' ;;
+      committer_filter_name) template='筛选提交者姓名 (留空=任意)' ;;
+      committer_filter_email) template='筛选提交者邮箱 (留空=任意)' ;;
+      author_name) template='作者姓名 (留空=保留)' ;;
+      author_email) template='作者邮箱 (留空=保留)' ;;
+      committer_name) template='提交者姓名 (留空=保留)' ;;
+      committer_email) template='提交者邮箱 (留空=保留)' ;;
+      author_date) template='作者日期 (留空=保留)' ;;
+      committer_date) template='提交者日期 (留空=保留)' ;;
+      message) template='消息 (留空=保留)' ;;
+      message_file) template='消息文件 (留空=无)' ;;
+      edit_messages) template='逐条编辑命中消息？[y/N]' ;;
+      map_file) template='逐提交 TSV 映射 (留空=无)' ;;
+      signing_key) template='签名密钥 (留空=配置值)' ;;
+      tag_policy) template='标签策略 (move/keep/abort)' ;;
+      allow_time_conflict) template='允许 GPG 密钥时间冲突？[y/N]' ;;
+      dry_run) template='仅预览？[y/N]' ;;
+      proceed) template='开始改写？[y/N]' ;;
+      returned_to_menu) template='已返回主菜单。' ;;
+      cancel) template='已取消；未修改任何引用。' ;;
+      plan_heading) template='将在 %s 上改写以下提交：' ;;
+      new_head) template='新的 HEAD 候选：%s' ;;
+      backup) template='备份：%s' ;;
+      no_refs) template='未修改任何引用。' ;;
+      rewrote) template='已改写 %s 个提交；新的 HEAD 为 %s' ;;
+      restore_command) template='恢复：%s --restore %s' ;;
+      push_command) template='推送：git push --force-with-lease origin %s' ;;
+      not_pushed) template='未执行任何推送。' ;;
+      time_conflict_warning) template='警告：git verify-commit 拒绝该密钥时间冲突签名；已使用 GnuPG VALIDSIG 验证。' ;;
+      *) template=$key ;;
+    esac
+  else
+    case "$key" in
+      title) template='Git commit recommit and OpenPGP re-sign' ;;
+      cancel_option) template='q) cancel' ;;
+      back_option) template='b) back' ;;
+      selection_prompt) template='Selection' ;;
+      one_commit) template='1) one commit' ;;
+      inclusive_range) template='2) inclusive range' ;;
+      all_commits) template='3) all commits' ;;
+      commit_prompt) template='Commit' ;;
+      range_prompt) template='Range (FROM..TO)' ;;
+      invalid_selection) template='Invalid selection.' ;;
+      author_filter_name) template='Author filter name (blank=any)' ;;
+      author_filter_email) template='Author filter email (blank=any)' ;;
+      committer_filter_name) template='Committer filter name (blank=any)' ;;
+      committer_filter_email) template='Committer filter email (blank=any)' ;;
+      author_name) template='Author name (blank=keep)' ;;
+      author_email) template='Author email (blank=keep)' ;;
+      committer_name) template='Committer name (blank=keep)' ;;
+      committer_email) template='Committer email (blank=keep)' ;;
+      author_date) template='Author date (blank=keep)' ;;
+      committer_date) template='Committer date (blank=keep)' ;;
+      message) template='Message (blank=keep)' ;;
+      message_file) template='Message file (blank=none)' ;;
+      edit_messages) template='Edit each matched message? [y/N]' ;;
+      map_file) template='Per-commit TSV map (blank=none)' ;;
+      signing_key) template='Signing key (blank=config)' ;;
+      tag_policy) template='Tag policy (move/keep/abort)' ;;
+      allow_time_conflict) template='Allow GPG key time conflict? [y/N]' ;;
+      dry_run) template='Dry run? [y/N]' ;;
+      proceed) template='Proceed with rewrite? [y/N]' ;;
+      returned_to_menu) template='Returned to the main menu.' ;;
+      cancel) template='Cancelled; no references changed.' ;;
+      plan_heading) template='Commits to rewrite on %s:' ;;
+      new_head) template='New HEAD candidate: %s' ;;
+      backup) template='Backup: %s' ;;
+      no_refs) template='No references changed.' ;;
+      rewrote) template='Rewrote %s commit(s); new HEAD %s' ;;
+      restore_command) template='Restore: %s --restore %s' ;;
+      push_command) template='Push: git push --force-with-lease origin %s' ;;
+      not_pushed) template='No command was pushed.' ;;
+      time_conflict_warning) template='WARNING: git verify-commit rejects this time-conflict signature; GnuPG VALIDSIG was used.' ;;
+      *) template=$key ;;
+    esac
+  fi
+  if [[ $# -gt 0 ]]; then
+    printf "$template" "$@"
+  else
+    printf '%s' "$template"
+  fi
+}
+
+ui_error() {
+  local key=$1
+  shift
+  local format
+  local -a values=("$@")
+
+  if [[ "$UI_LANGUAGE" == zh ]]; then
+    case "$key" in
+      selection_requires_value) format='%s 需要一个值' ;;
+      selection_mutually_exclusive) format='范围选项互斥，只能选择一个' ;;
+      unexpected_argument) format='意外参数：%s' ;;
+      unsupported_option) format='不支持的选项：%s' ;;
+      invalid_date) format="日期无效 '%s'；请使用 YYYY-MM-DDTHH:MM:SS±HH:MM" ;;
+      invalid_timezone) format="时区偏移无效：'%s'" ;;
+      cannot_parse_identity_line) format='无法解析身份行：%s' ;;
+      cannot_parse_timestamp) format='无法解析时间戳：%s' ;;
+      cannot_parse_timezone) format='无法解析时区：%s' ;;
+      cannot_parse_role_identity) format='无法解析 %s 身份：%s' ;;
+      identity_newline) format='%s 身份不能包含换行' ;;
+      identity_angle_brackets) format='%s %s 不能包含尖括号' ;;
+      message_file_missing) format='消息文件不存在：%s' ;;
+      message_file_unreadable) format='消息文件不可读：%s' ;;
+      no_editor) format='未配置编辑器（请设置 GIT_EDITOR 或 core.editor）' ;;
+      editor_failed) format='编辑 %s 的消息时编辑器失败' ;;
+      gpg_sign_failed) format='GnuPG 无法创建签名：%s' ;;
+      gpg_signature_rejected) format='GnuPG 拒绝了生成的签名' ;;
+      gpg_no_validsig) format='GnuPG 未报告有效签名' ;;
+      range_syntax) format='--range 需要 FROM..TO' ;;
+      range_endpoints) format='--range 需要同时提供 FROM 和 TO' ;;
+      range_start_missing) format='无法解析范围起点：%s' ;;
+      range_end_missing) format='无法解析范围终点：%s' ;;
+      range_not_ancestor) format='范围起点不是范围终点的祖先' ;;
+      commit_missing) format='无法解析提交：%s' ;;
+      range_end_unreachable) format='范围终点无法从当前分支 tip 到达' ;;
+      head_missing) format='HEAD 未指向任何提交' ;;
+      selection_required) format='必须选择提交范围；请使用 --commit、--range 或 --all' ;;
+      cannot_parse_identity) format='无法解析身份：%s' ;;
+      map_unreadable) format='映射文件不可读：%s' ;;
+      map_columns) format='映射第 %s 行：需要四个制表符分隔的列' ;;
+      map_header) format='映射表头必须为：commit, author_date, committer_date, message_file' ;;
+      map_commit_required) format='映射第 %s 行：commit 不能为空' ;;
+      map_commit_oid) format='映射第 %s 行：commit 必须是完整对象 ID' ;;
+      map_duplicate) format="映射第 %s 行：重复提交 '%s'" ;;
+      object_no_separator) format='%s 没有头部/消息分隔符' ;;
+      object_missing_header) format='缺少 %s 头' ;;
+      malformed_gpgsig) format='gpgsig 续行格式错误' ;;
+      signature_not_removed) format='提交头中的签名未被移除' ;;
+      signature_epoch_mismatch) format='签名 epoch 不匹配：期望 %s，实际 %s' ;;
+      git_no_validsig) format='Git 未为 %s 报告 VALIDSIG' ;;
+      git_verify_failed) format='提交 %s 的 git verify-commit 失败：%s' ;;
+      no_payload_for_conflict) format='缺少用于验证密钥时间冲突签名的载荷' ;;
+      cannot_extract_signature) format='无法从 %s 提取签名' ;;
+      not_repository) format='当前目录不是 Git 仓库' ;;
+      bare_repository) format='不支持裸仓库' ;;
+      detached_head) format='不支持 detached HEAD；请检出本地分支' ;;
+      empty_branch) format='当前分支没有任何提交' ;;
+      dirty_worktree) format='工作树和索引必须干净（未跟踪文件也视为脏）' ;;
+      rebase_in_progress) format='正在进行 rebase' ;;
+      merge_in_progress) format='正在进行 merge' ;;
+      cherry_pick_in_progress) format='正在进行 cherry-pick' ;;
+      revert_in_progress) format='正在进行 revert' ;;
+      bisect_in_progress) format='正在进行 bisect' ;;
+      index_locked) format='index.lock 存在；可能有其他 Git 操作正在运行' ;;
+      only_openpgp) format='仅支持 OpenPGP 签名（gpg.format=%s）' ;;
+      no_signing_key) format='未配置签名密钥；请使用 --signing-key 或 user.signingKey' ;;
+      gpg_missing) format='未安装 gpg' ;;
+      git_missing) format='未安装 git' ;;
+      secret_key_missing) format='找不到私钥：%s' ;;
+      ambiguous_key) format='签名密钥选择不唯一：%s' ;;
+      another_rewrite) format='另一个改写任务正在运行（pid %s）' ;;
+      stale_lock) format='锁已存在：%s（确认没有改写任务运行后再删除）' ;;
+      cannot_read_commit) format='无法读取提交：%s' ;;
+      malformed_commit) format='提交对象格式错误：%s' ;;
+      enumerate_failed) format='无法枚举当前分支提交' ;;
+      no_matches) format='没有提交匹配所选范围' ;;
+      write_commit_failed) format='无法为 %s 写入提交对象' ;;
+      tree_changed) format='%s 的 tree 发生变化' ;;
+      no_new_head) format='无法确定新的分支 HEAD' ;;
+      write_manifest_failed) format='无法写入备份 manifest' ;;
+      read_annotated_tag) format='无法读取附注标签：%s' ;;
+      tag_no_tagger) format='附注标签缺少 tagger：%s' ;;
+      extract_tag_signature) format='无法提取标签签名：%s' ;;
+      write_tag_failed) format='无法为 %s 写入标签对象' ;;
+      tag_verify_failed) format='新的附注标签验签失败：%s' ;;
+      tag_gpg_no_validsig) format='GnuPG 未为标签 %s 报告 VALIDSIG：%s' ;;
+      tag_requires_policy) format='标签 %s 指向被改写提交；请使用 --tag-policy move 或 keep' ;;
+      ref_transaction_failed) format='引用事务失败；未修改任何引用' ;;
+      invalid_backup_id) format='备份 ID 无效' ;;
+      backup_manifest_missing) format='找不到备份 manifest：%s' ;;
+      backup_wrong_branch) format='备份不属于当前分支 %s' ;;
+      backup_manifest_format) format='不支持或缺少备份 manifest 格式：%s' ;;
+      backup_branch_mismatch) format='备份属于 %s，不属于 %s' ;;
+      backup_invalid_head) format='备份 manifest 的 head 无效' ;;
+      backup_tag_missing) format='备份缺少标签引用：%s' ;;
+      restore_failed) format='恢复事务失败；未修改任何引用' ;;
+      tag_policy_invalid) format='--tag-policy 必须为 move、keep 或 abort' ;;
+      message_conflict) format='%s 与 %s 互斥' ;;
+      yes_required) format='非交互执行必须带 --yes' ;;
+      backup_exists) format='备份 ID 已存在：%s' ;;
+      inspect_worktree_failed) format='更新后无法检查工作树' ;;
+      worktree_changed) format='更新引用后工作树意外改变' ;;
+      label_primary_signing_key) format='主签名密钥' ;;
+      label_signature_epoch) format='签名 epoch' ;;
+      label_git_signature_epoch) format='Git 签名 epoch' ;;
+      label_parents) format='%s 的父提交' ;;
+      label_author_epoch) format='作者 epoch' ;;
+      label_committer_epoch) format='提交者 epoch' ;;
+      label_tag_signature_epoch) format='标签签名 epoch' ;;
+      *) format=$key ;;
+    esac
+  else
+    case "$key" in
+      selection_requires_value) format='%s requires a value' ;;
+      selection_mutually_exclusive) format='selection options are mutually exclusive' ;;
+      unexpected_argument) format='unexpected argument: %s' ;;
+      unsupported_option) format='unsupported option: %s' ;;
+      invalid_date) format="invalid date '%s'; use YYYY-MM-DDTHH:MM:SS±HH:MM" ;;
+      invalid_timezone) format="invalid timezone offset in '%s'" ;;
+      cannot_parse_identity_line) format='cannot parse identity line: %s' ;;
+      cannot_parse_timestamp) format='cannot parse timestamp: %s' ;;
+      cannot_parse_timezone) format='cannot parse timezone: %s' ;;
+      cannot_parse_role_identity) format='cannot parse %s identity: %s' ;;
+      identity_newline) format='%s identity cannot contain a newline' ;;
+      identity_angle_brackets) format='%s %s cannot contain angle brackets' ;;
+      message_file_missing) format='message file does not exist: %s' ;;
+      message_file_unreadable) format='message file is not readable: %s' ;;
+      no_editor) format='no editor configured (set GIT_EDITOR or core.editor)' ;;
+      editor_failed) format='editor failed while editing %s' ;;
+      gpg_sign_failed) format='GnuPG could not create a signature: %s' ;;
+      gpg_signature_rejected) format='GnuPG rejected the generated signature' ;;
+      gpg_no_validsig) format='GnuPG did not report a valid signature' ;;
+      range_syntax) format='--range requires FROM..TO' ;;
+      range_endpoints) format='--range requires both FROM and TO' ;;
+      range_start_missing) format='cannot resolve range start: %s' ;;
+      range_end_missing) format='cannot resolve range end: %s' ;;
+      range_not_ancestor) format='range start is not an ancestor of range end' ;;
+      commit_missing) format='cannot resolve commit: %s' ;;
+      range_end_unreachable) format='range end is not reachable from the current branch tip' ;;
+      head_missing) format='HEAD does not point to a commit' ;;
+      selection_required) format='commit selection is required; use --commit, --range, or --all' ;;
+      cannot_parse_identity) format='cannot parse identity: %s' ;;
+      map_unreadable) format='map file is not readable: %s' ;;
+      map_columns) format='map line %s: expected four tab-separated columns' ;;
+      map_header) format='map header must be: commit, author_date, committer_date, message_file' ;;
+      map_commit_required) format='map line %s: commit is required' ;;
+      map_commit_oid) format='map line %s: commit must be a full object ID' ;;
+      map_duplicate) format="map line %s: duplicate commit '%s'" ;;
+      object_no_separator) format='%s has no header/message separator' ;;
+      object_missing_header) format='missing %s header' ;;
+      malformed_gpgsig) format='malformed gpgsig continuation' ;;
+      signature_not_removed) format='signature was not removed from commit headers' ;;
+      signature_epoch_mismatch) format='signature epoch mismatch: expected %s, got %s' ;;
+      git_no_validsig) format='git did not report VALIDSIG for %s' ;;
+      git_verify_failed) format='git verify-commit failed for %s: %s' ;;
+      no_payload_for_conflict) format='cannot verify time-conflict signature without payload' ;;
+      cannot_extract_signature) format='cannot extract signature from %s' ;;
+      not_repository) format='not inside a Git repository' ;;
+      bare_repository) format='bare repositories are not supported' ;;
+      detached_head) format='detached HEAD is not supported; check out a local branch' ;;
+      empty_branch) format='current branch has no commit' ;;
+      dirty_worktree) format='working tree and index must be clean (untracked files count as dirty)' ;;
+      rebase_in_progress) format='a rebase is in progress' ;;
+      merge_in_progress) format='a merge is in progress' ;;
+      cherry_pick_in_progress) format='a cherry-pick is in progress' ;;
+      revert_in_progress) format='a revert is in progress' ;;
+      bisect_in_progress) format='a bisect is in progress' ;;
+      index_locked) format='index.lock exists; another Git operation may be running' ;;
+      only_openpgp) format='only OpenPGP signing is supported (gpg.format=%s)' ;;
+      no_signing_key) format='no signing key configured; use --signing-key or user.signingKey' ;;
+      gpg_missing) format='gpg is not installed' ;;
+      git_missing) format='git is not installed' ;;
+      secret_key_missing) format='secret signing key not found: %s' ;;
+      ambiguous_key) format='signing key selector is ambiguous: %s' ;;
+      another_rewrite) format='another rewrite is running (pid %s)' ;;
+      stale_lock) format='lock exists: %s (remove it only after confirming no rewrite is running)' ;;
+      cannot_read_commit) format='cannot read commit: %s' ;;
+      malformed_commit) format='malformed commit object: %s' ;;
+      enumerate_failed) format='could not enumerate current branch commits' ;;
+      no_matches) format='no commits matched the selection' ;;
+      write_commit_failed) format='could not write commit object for %s' ;;
+      tree_changed) format='tree changed for %s' ;;
+      no_new_head) format='new branch head could not be determined' ;;
+      write_manifest_failed) format='could not write backup manifest' ;;
+      read_annotated_tag) format='cannot read annotated tag: %s' ;;
+      tag_no_tagger) format='annotated tag has no tagger: %s' ;;
+      extract_tag_signature) format='cannot extract tag signature: %s' ;;
+      write_tag_failed) format='could not write tag object for %s' ;;
+      tag_verify_failed) format='new annotated tag did not verify: %s' ;;
+      tag_gpg_no_validsig) format='GnuPG did not report VALIDSIG for tag %s: %s' ;;
+      tag_requires_policy) format='tag %s points to a rewritten commit; use --tag-policy move or keep' ;;
+      ref_transaction_failed) format='reference transaction failed; no references were changed' ;;
+      invalid_backup_id) format='invalid backup id' ;;
+      backup_manifest_missing) format='backup manifest not found: %s' ;;
+      backup_wrong_branch) format='backup does not contain current branch %s' ;;
+      backup_manifest_format) format='unsupported or missing backup manifest format: %s' ;;
+      backup_branch_mismatch) format='backup belongs to %s, not %s' ;;
+      backup_invalid_head) format='backup manifest has invalid head' ;;
+      backup_tag_missing) format='backup tag ref is missing: %s' ;;
+      restore_failed) format='restore transaction failed; no references were changed' ;;
+      tag_policy_invalid) format='--tag-policy must be move, keep, or abort' ;;
+      message_conflict) format='%s and %s are mutually exclusive' ;;
+      yes_required) format='non-interactive execution requires --yes' ;;
+      backup_exists) format='backup id already exists: %s' ;;
+      inspect_worktree_failed) format='could not inspect worktree after update' ;;
+      worktree_changed) format='worktree changed unexpectedly after reference update' ;;
+      label_primary_signing_key) format='primary signing key' ;;
+      label_signature_epoch) format='signature epoch' ;;
+      label_git_signature_epoch) format='git signature epoch' ;;
+      label_parents) format='parents for %s' ;;
+      label_author_epoch) format='author epoch' ;;
+      label_committer_epoch) format='committer epoch' ;;
+      label_tag_signature_epoch) format='tag signature epoch' ;;
+      *) format=$key ;;
+    esac
+  fi
+  if [[ ${#values[@]} -gt 0 ]]; then
+    printf "$format" "${values[@]}"
+  else
+    printf '%s' "$format"
+  fi
 }
 
 parse_args() {
@@ -109,7 +438,7 @@ parse_args() {
       --commit)
         require_value "$@"
         [[ -z "$SELECTION_KIND" ]] ||
-          usage_error "selection options are mutually exclusive"
+          usage_error "$(ui_error selection_mutually_exclusive)"
         SELECTION_KIND=commit
         SELECTION_VALUE=$2
       SELECTED_FROM=
@@ -119,7 +448,7 @@ parse_args() {
       --range)
         require_value "$@"
         [[ -z "$SELECTION_KIND" ]] ||
-          usage_error "selection options are mutually exclusive"
+          usage_error "$(ui_error selection_mutually_exclusive)"
         SELECTION_KIND=range
         SELECTION_VALUE=$2
       SELECTED_FROM=
@@ -128,7 +457,7 @@ parse_args() {
         ;;
       --all)
         [[ -z "$SELECTION_KIND" ]] ||
-          usage_error "selection options are mutually exclusive"
+          usage_error "$(ui_error selection_mutually_exclusive)"
         SELECTION_KIND=all
         SELECTION_VALUE=
       SELECTED_FROM=
@@ -238,13 +567,13 @@ parse_args() {
         ;;
       --)
         shift
-        [[ $# -eq 0 ]] || usage_error "unexpected argument: $1"
+        [[ $# -eq 0 ]] || usage_error "$(ui_error unexpected_argument "$1")"
         ;;
       -*)
-        usage_error "unsupported option: $1"
+        usage_error "$(ui_error unsupported_option "$1")"
         ;;
       *)
-        usage_error "unexpected argument: $1"
+        usage_error "$(ui_error unexpected_argument "$1")"
         ;;
     esac
   done
@@ -256,7 +585,7 @@ normalize_date() {
   local regex='^([0-9]{4})-([0-9]{2})-([0-9]{2})[T ]([0-9]{2}):([0-9]{2}):([0-9]{2})(Z|[+-][0-9]{2}:?[0-9]{2})$'
 
   [[ "$value" =~ $regex ]] ||
-    die "invalid date '$value'; use YYYY-MM-DDTHH:MM:SS±HH:MM"
+    die "$(ui_error invalid_date "$value")"
 
   local year=${BASH_REMATCH[1]}
   local month=${BASH_REMATCH[2]}
@@ -273,19 +602,19 @@ normalize_date() {
     offset="${BASH_REMATCH[1]}:${BASH_REMATCH[2]}"
   fi
   if [[ ! "$offset" =~ ^[+-][0-9]{2}:[0-9]{2}$ ]]; then
-    die "invalid timezone offset in '$value'"
+    die "$(ui_error invalid_timezone "$value")"
   fi
 
   local offset_hour=${offset:1:2}
   local offset_minute=${offset:4:2}
-  ((10#$offset_hour <= 23)) || die "invalid timezone offset in '$value'"
-  ((10#$offset_minute <= 59)) || die "invalid timezone offset in '$value'"
+  ((10#$offset_hour <= 23)) || die "$(ui_error invalid_timezone "$value")"
+  ((10#$offset_minute <= 59)) || die "$(ui_error invalid_timezone "$value")"
 
   local epoch
   epoch=$(TZ=UTC date -d \
     "$year-$month-$day $hour:$minute:$second $offset" +%s 2>/dev/null) ||
-    die "invalid date '$value'"
-  [[ "$epoch" =~ ^[0-9]+$ ]] || die "invalid date '$value'"
+    die "$(ui_error invalid_date "$value")"
+  [[ "$epoch" =~ ^[0-9]+$ ]] || die "$(ui_error invalid_date "$value")"
 
   printf '%s %s\n' "$epoch" "${offset/:/}"
 }
@@ -293,21 +622,21 @@ normalize_date() {
 extract_identity() {
   local line=$1
   [[ "$line" =~ ^(.*)\ [0-9]+\ [+-][0-9]{4}$ ]] ||
-    die "cannot parse identity line: $line"
+    die "$(ui_error cannot_parse_identity_line "$line")"
   printf '%s\n' "${BASH_REMATCH[1]}"
 }
 
 extract_epoch() {
   local line=$1
   [[ "$line" =~ \ ([0-9]+)\ [+-][0-9]{4}$ ]] ||
-    die "cannot parse timestamp: $line"
+    die "$(ui_error cannot_parse_timestamp "$line")"
   printf '%s\n' "${BASH_REMATCH[1]}"
 }
 
 extract_zone() {
   local line=$1
   [[ "$line" =~ \ ([+-][0-9]{4})$ ]] ||
-    die "cannot parse timezone: $line"
+    die "$(ui_error cannot_parse_timezone "$line")"
   printf '%s\n' "${BASH_REMATCH[1]}"
 }
 
@@ -320,7 +649,7 @@ rewrite_identity() {
     name=${BASH_REMATCH[1]}
     email=${BASH_REMATCH[2]}
   else
-    die "cannot parse $role identity: $ident"
+    die "$(ui_error cannot_parse_role_identity "$role" "$ident")"
   fi
 
   if [[ "$role" == author ]]; then
@@ -332,11 +661,11 @@ rewrite_identity() {
   fi
 
   [[ "$name" != *$'\n'* && "$email" != *$'\n'* ]] ||
-    die "$role identity cannot contain a newline"
+    die "$(ui_error identity_newline "$role")"
   [[ "$name" != *'<'* && "$name" != *'>'* ]] ||
-    die "$role name cannot contain angle brackets"
+    die "$(ui_error identity_angle_brackets "$role" name)"
   [[ "$email" != *'<'* && "$email" != *'>'* ]] ||
-    die "$role email cannot contain angle brackets"
+    die "$(ui_error identity_angle_brackets "$role" email)"
 
   printf '%s <%s>\n' "$name" "$email"
 }
@@ -344,8 +673,8 @@ rewrite_identity() {
 validate_message_file() {
   local path=$1
 
-  [[ -f "$path" ]] || die "message file does not exist: $path"
-  [[ -r "$path" ]] || die "message file is not readable: $path"
+  [[ -f "$path" ]] || die "$(ui_error message_file_missing "$path")"
+  [[ -r "$path" ]] || die "$(ui_error message_file_unreadable "$path")"
 }
 
 read_message_file() {
@@ -374,12 +703,12 @@ edit_selected_message() {
   local editor
 
   editor=$(git var GIT_EDITOR 2>/dev/null) ||
-    die "no editor configured (set GIT_EDITOR or core.editor)"
-  [[ -n "$editor" ]] || die "no editor configured"
+    die "$(ui_error no_editor)"
+  [[ -n "$editor" ]] || die "$(ui_error no_editor)"
   cp -- "$original" "$output"
   (
     eval "$editor \"\$output\""
-  ) || die "editor failed while editing $oid"
+  ) || die "$(ui_error editor_failed "$oid")"
 }
 
 sign_bytes() {
@@ -396,7 +725,7 @@ sign_bytes() {
   gpg_args+=(--output "$output" "$input")
 
   gpg "${gpg_args[@]}" >/dev/null 2>"$WORK_DIR/gpg.err" ||
-    die "GnuPG could not create a signature: $(<"$WORK_DIR/gpg.err")"
+    die "$(ui_error gpg_sign_failed "$(<"$WORK_DIR/gpg.err")")"
 }
 
 gpg_status_verify() {
@@ -418,45 +747,50 @@ verify_gpg_signature() {
   local status
 
   if ! status=$(gpg_status_verify "$signature" "$payload"); then
-    die "GnuPG rejected the generated signature"
+    die "$(ui_error gpg_signature_rejected)"
   fi
 
   local validsig
   validsig=$(printf '%s\n' "$status" | awk '$2 == "VALIDSIG" { print; exit }')
-  [[ -n "$validsig" ]] || die "GnuPG did not report a valid signature"
-  assert_eq "${validsig##* }" "$SIGNING_KEY" "primary signing key"
+  [[ -n "$validsig" ]] || die "$(ui_error gpg_no_validsig)"
+  assert_eq "${validsig##* }" "$SIGNING_KEY" \
+    "$(ui_error label_primary_signing_key)"
   local signed_epoch
   signed_epoch=$(
     printf '%s\n' "$validsig" | awk '{ print $5 }'
   )
-  assert_eq "$signed_epoch" "$expected_epoch" "signature epoch"
+  assert_eq "$signed_epoch" "$expected_epoch" \
+    "$(ui_error label_signature_epoch)"
 }
 
 assert_eq() {
   local expected=$1
   local actual=$2
   local label=$3
-  [[ "$actual" == "$expected" ]] ||
-    die "$label: expected [$expected], got [$actual]"
+  [[ "$actual" == "$expected" ]] && return 0
+  if [[ "$UI_LANGUAGE" == zh ]]; then
+    die "$label：期望 [$expected]，实际 [$actual]"
+  fi
+  die "$label: expected [$expected], got [$actual]"
 }
 
 resolve_commit_range() {
   local from_to=$1
   [[ "$from_to" == *..* && "$from_to" != *...* ]] ||
-    usage_error "--range requires FROM..TO"
+    usage_error "$(ui_error range_syntax)"
   local from=${from_to%%..*}
   local to=${from_to#*..}
   [[ -n "$from" && -n "$to" ]] ||
-    usage_error "--range requires both FROM and TO"
+    usage_error "$(ui_error range_endpoints)"
 
   local from_oid to_oid
   from_oid=$(git rev-parse --verify "$from^{commit}" 2>/dev/null) ||
-    die "cannot resolve range start: $from"
+    die "$(ui_error range_start_missing "$from")"
   to_oid=$(git rev-parse --verify "$to^{commit}" 2>/dev/null) ||
-    die "cannot resolve range end: $to"
+    die "$(ui_error range_end_missing "$to")"
 
   git merge-base --is-ancestor "$from_oid" "$to_oid" ||
-    die "range start is not an ancestor of range end"
+    die "$(ui_error range_not_ancestor)"
 
   printf '%s\n' "$from_oid" "$to_oid"
 }
@@ -470,7 +804,7 @@ collect_commits() {
     commit)
       local oid
       oid=$(git rev-parse --verify "$SELECTION_VALUE^{commit}" 2>/dev/null) ||
-        die "cannot resolve commit: $SELECTION_VALUE"
+        die "$(ui_error commit_missing "$SELECTION_VALUE")"
       SELECTED_OID=$oid
       SELECTED_TO=$CURRENT_HEAD
       ;;
@@ -480,15 +814,15 @@ collect_commits() {
       SELECTED_FROM=${range%%$'\n'*}
       SELECTED_TO=${range#*$'\n'}
       git merge-base --is-ancestor "$SELECTED_TO" "$CURRENT_HEAD" ||
-        die "range end is not reachable from the current branch tip"
+        die "$(ui_error range_end_unreachable)"
       ;;
     all)
       SELECTED_FROM=
       SELECTED_TO=$(git rev-parse --verify 'HEAD^{commit}') ||
-        die "HEAD does not point to a commit"
+        die "$(ui_error head_missing)"
       ;;
     *)
-      die "commit selection is required; use --commit, --range, or --all"
+      die "$(ui_error selection_required)"
       ;;
   esac
 
@@ -498,20 +832,20 @@ collect_commits() {
 identity_name() {
   local ident=$1
   [[ "$ident" =~ ^(.*)\ \<[^\<\>]*\>$ ]] ||
-    die "cannot parse identity: $ident"
+    die "$(ui_error cannot_parse_identity "$ident")"
   printf '%s\n' "${BASH_REMATCH[1]}"
 }
 
 identity_email() {
   local ident=$1
   [[ "$ident" =~ ^[^\<\>]*\ \<([^\<\>]*)\>$ ]] ||
-    die "cannot parse identity: $ident"
+    die "$(ui_error cannot_parse_identity "$ident")"
   printf '%s\n' "${BASH_REMATCH[1]}"
 }
 
 parse_map() {
   local path=$1
-  [[ -f "$path" && -r "$path" ]] || die "map file is not readable: $path"
+  [[ -f "$path" && -r "$path" ]] || die "$(ui_error map_unreadable "$path")"
 
   declare -gA MAP_AUTHOR_DATE=()
   declare -gA MAP_COMMITTER_DATE=()
@@ -521,7 +855,7 @@ parse_map() {
   local invalid_line
   invalid_line=$(awk -F '\t' 'NF != 4 { print NR; exit }' "$path")
   [[ -z "$invalid_line" ]] ||
-    die "map line $invalid_line: expected four tab-separated columns"
+    die "$(ui_error map_columns "$invalid_line")"
 
   while IFS=$'\034' read -r number commit author_date committer_date \
     message_file extra; do
@@ -529,15 +863,15 @@ parse_map() {
       [[ "$author_date" == author_date &&
         "$committer_date" == committer_date &&
         "$message_file" == message_file ]] ||
-        die "map header must be: commit, author_date, committer_date, message_file"
+        die "$(ui_error map_header)"
       continue
     fi
-    [[ -n "$commit" ]] || die "map line $number: commit is required"
+    [[ -n "$commit" ]] || die "$(ui_error map_commit_required "$number")"
     valid_full_oid "${commit,,}" ||
-      die "map line $number: commit must be a full object ID"
+      die "$(ui_error map_commit_oid "$number")"
     commit=${commit,,}
     [[ -z "${MAP_SEEN[$commit]:-}" ]] ||
-      die "map line $number: duplicate commit '$commit'"
+      die "$(ui_error map_duplicate "$number" "$commit")"
     MAP_SEEN[$commit]=1
     if [[ -n "$author_date" ]]; then
       MAP_AUTHOR_DATE[$commit]=$author_date
@@ -563,10 +897,10 @@ replace_header_value() {
   local replaced=0 line header_bytes input_bytes
 
   header_bytes=$(commit_header_bytes "$input") ||
-    die "cannot locate object header separator"
+    die "$(ui_error object_no_separator "$input")"
   input_bytes=$(wc -c <"$input")
   [[ "$header_bytes" -lt "$input_bytes" ]] ||
-    die "object has no header/message separator"
+    die "$(ui_error object_no_separator "$input")"
 
   : >"$output"
   while IFS= read -r line || [[ -n "$line" ]]; do
@@ -577,7 +911,7 @@ replace_header_value() {
       printf '%s\n' "$line" >>"$output"
     fi
   done < <(head -c "$header_bytes" "$input")
-  [[ "$replaced" -eq 1 ]] || die "missing $key header"
+  [[ "$replaced" -eq 1 ]] || die "$(ui_error object_missing_header "$key")"
   printf '\n' >>"$output"
   tail -c "+$((header_bytes + 2))" "$input" >>"$output"
 }
@@ -590,10 +924,10 @@ split_commit_object() {
   local filtered="$headers.filtered"
 
   header_bytes=$(commit_header_bytes "$raw") ||
-    die "cannot locate commit header separator"
+    die "$(ui_error object_no_separator "$raw")"
   raw_bytes=$(wc -c <"$raw")
   [[ "$header_bytes" -lt "$raw_bytes" ]] ||
-    die "commit object has no header/message separator"
+    die "$(ui_error object_no_separator "$raw")"
 
   head -c "$header_bytes" "$raw" >"$headers"
   tail -c "+$((header_bytes + 2))" "$raw" >"$message"
@@ -604,7 +938,7 @@ split_commit_object() {
       if [[ "$line" == ' '* ]]; then
         continue
       fi
-      die "malformed gpgsig continuation"
+      die "$(ui_error malformed_gpgsig)"
     fi
     if [[ "$line" == gpgsig\ * ]]; then
       skipping_sig=1
@@ -671,7 +1005,7 @@ rebuild_commit_object() {
         printf '%s\n' "$line" >>"$unsigned"
         ;;
       gpgsig\ *)
-        die "signature was not removed from commit headers"
+        die "$(ui_error signature_not_removed)"
         ;;
       *)
         printf '%s\n' "$line" >>"$unsigned"
@@ -695,7 +1029,7 @@ write_signed_commit() {
     LC_ALL=C sed -n '/^$/q; p' "$unsigned" | wc -c
   )
   [[ "$header_bytes" -gt 0 ]] ||
-    die "commit object has no header/message separator"
+    die "$(ui_error object_no_separator "$unsigned")"
 
   head -c "$header_bytes" "$unsigned" >"$output"
   local first=1 line
@@ -712,15 +1046,15 @@ write_signed_commit() {
 
   local status
   if ! status=$(gpg_status_verify "$signature" "$unsigned"); then
-    die "GnuPG rejected the generated commit signature"
+    die "$(ui_error gpg_signature_rejected)"
   fi
   [[ "$status" == *'[GNUPG:] VALIDSIG '*'[GNUPG:]'* ]] ||
-    die "GnuPG did not report VALIDSIG"
+    die "$(ui_error gpg_no_validsig)"
   local signed_epoch
   signed_epoch=$(printf '%s\n' "$status" |
     awk '$2 == "VALIDSIG" { print $5; exit }')
   [[ "$signed_epoch" == "$epoch" ]] ||
-    die "signature epoch mismatch: expected $epoch, got $signed_epoch"
+    die "$(ui_error signature_epoch_mismatch "$epoch" "$signed_epoch")"
 }
 
 verify_created_commit() {
@@ -734,27 +1068,28 @@ verify_created_commit() {
   ) || rc=$?
   if [[ "$rc" -eq 0 ]]; then
     [[ "$output" == *'[GNUPG:] VALIDSIG '* ]] ||
-      die "git did not report VALIDSIG for $oid"
+      die "$(ui_error git_no_validsig "$oid")"
     local git_epoch
     git_epoch=$(printf '%s\n' "$output" |
       awk '$2 == "VALIDSIG" { print $5; exit }')
-    assert_eq "$expected_epoch" "$git_epoch" "git signature epoch"
+    assert_eq "$expected_epoch" "$git_epoch" \
+      "$(ui_error label_git_signature_epoch)"
     return
   fi
 
   [[ "$ALLOW_KEY_TIME_CONFLICT" -eq 1 ]] ||
-    die "git verify-commit failed for $oid: $output"
+    die "$(ui_error git_verify_failed "$oid" "$output")"
   [[ -n "$unsigned_payload" && -f "$unsigned_payload" ]] ||
-    die "cannot verify time-conflict signature without payload"
+    die "$(ui_error no_payload_for_conflict)"
 
   local signature="$WORK_DIR/allowed-conflict.signature"
   git cat-file commit "$oid" |
     sed -n '/^gpgsig /,/^[^ ]/p' |
     sed '$d' |
     sed '1s/^gpgsig //; 2,$s/^ //' >"$signature"
-  [[ -s "$signature" ]] || die "cannot extract signature from $oid"
+  [[ -s "$signature" ]] || die "$(ui_error cannot_extract_signature "$oid")"
   verify_gpg_signature "$signature" "$unsigned_payload" "$expected_epoch"
-  printf 'WARNING: git verify-commit rejects this time-conflict signature; GnuPG VALIDSIG was used.\n' >&2
+  printf '%s\n' "$(ui_text time_conflict_warning)" >&2
 }
 
 expected_new_head_for_selection() {
@@ -764,71 +1099,71 @@ expected_new_head_for_selection() {
 
 preflight_repository() {
   git rev-parse --git-dir >/dev/null 2>&1 ||
-    die "not inside a Git repository"
+    die "$(ui_error not_repository)"
   [[ "$(git rev-parse --is-bare-repository 2>/dev/null)" == false ]] ||
-    die "bare repositories are not supported"
+    die "$(ui_error bare_repository)"
 
   CURRENT_BRANCH=$(git symbolic-ref --quiet --short HEAD 2>/dev/null) ||
-    die "detached HEAD is not supported; check out a local branch"
+    die "$(ui_error detached_head)"
   CURRENT_REF="refs/heads/$CURRENT_BRANCH"
   CURRENT_HEAD=$(git rev-parse --verify 'HEAD^{commit}') ||
-    die "current branch has no commit"
+    die "$(ui_error empty_branch)"
 
   FULL_WORKTREE_STATUS=$(
     git status --porcelain=v1 --untracked-files=all
   )
   [[ -z "$FULL_WORKTREE_STATUS" ]] ||
-    die "working tree and index must be clean (untracked files count as dirty)"
+    die "$(ui_error dirty_worktree)"
 
   local git_dir
   git_dir=$(git rev-parse --git-path rebase-merge)
-  [[ ! -d "$git_dir" ]] || die "a rebase is in progress"
+  [[ ! -d "$git_dir" ]] || die "$(ui_error rebase_in_progress)"
   git_dir=$(git rev-parse --git-path rebase-apply)
-  [[ ! -d "$git_dir" ]] || die "a rebase is in progress"
+  [[ ! -d "$git_dir" ]] || die "$(ui_error rebase_in_progress)"
   git_dir=$(git rev-parse --git-path MERGE_HEAD)
-  [[ ! -e "$git_dir" ]] || die "a merge is in progress"
+  [[ ! -e "$git_dir" ]] || die "$(ui_error merge_in_progress)"
   git_dir=$(git rev-parse --git-path CHERRY_PICK_HEAD)
-  [[ ! -e "$git_dir" ]] || die "a cherry-pick is in progress"
+  [[ ! -e "$git_dir" ]] || die "$(ui_error cherry_pick_in_progress)"
   git_dir=$(git rev-parse --git-path REVERT_HEAD)
-  [[ ! -e "$git_dir" ]] || die "a revert is in progress"
+  [[ ! -e "$git_dir" ]] || die "$(ui_error revert_in_progress)"
   git_dir=$(git rev-parse --git-path BISECT_LOG)
-  [[ ! -e "$git_dir" ]] || die "a bisect is in progress"
+  [[ ! -e "$git_dir" ]] || die "$(ui_error bisect_in_progress)"
 
   local index_lock
   index_lock=$(git rev-parse --git-path index.lock)
   [[ ! -e "$index_lock" ]] ||
-    die "index.lock exists; another Git operation may be running"
+    die "$(ui_error index_locked)"
 }
 
 preflight_signing() {
   local format
   format=$(git config --get gpg.format 2>/dev/null || true)
   [[ "${format:-openpgp}" == openpgp ]] ||
-    die "only OpenPGP signing is supported (gpg.format=$format)"
+    die "$(ui_error only_openpgp "$format")"
 
   if [[ -z "$SIGNING_KEY" ]]; then
     SIGNING_KEY=$(git config --get user.signingKey 2>/dev/null || true)
   fi
   [[ -n "$SIGNING_KEY" ]] ||
-    die "no signing key configured; use --signing-key or user.signingKey"
+    die "$(ui_error no_signing_key)"
 
-  command -v gpg >/dev/null 2>&1 || die "gpg is not installed"
-  command -v git >/dev/null 2>&1 || die "git is not installed"
+  command -v gpg >/dev/null 2>&1 || die "$(ui_error gpg_missing)"
+  command -v git >/dev/null 2>&1 || die "$(ui_error git_missing)"
 
   local requested=$SIGNING_KEY
   local key_status fingerprints key_count resolved_key
   key_status=$(
     gpg --batch --with-colons --list-secret-keys -- "$requested" 2>/dev/null
-  ) || die "secret signing key not found: $requested"
+  ) || die "$(ui_error secret_key_missing "$requested")"
   fingerprints=$(
     printf '%s\n' "$key_status" |
       awk -F: '$1 == "fpr" { print $10 }'
   )
   key_count=$(printf '%s\n' "$fingerprints" | awk 'NF { count++ } END { print count + 0 }')
   [[ "$key_count" -gt 0 ]] ||
-    die "secret signing key not found: $requested"
+    die "$(ui_error secret_key_missing "$requested")"
   [[ "$key_count" -eq 1 ]] ||
-    die "signing key selector is ambiguous: $requested"
+    die "$(ui_error ambiguous_key "$requested")"
   resolved_key=$(printf '%s\n' "$fingerprints" | awk 'NF { print; exit }')
   SIGNING_KEY=$resolved_key
 }
@@ -841,9 +1176,9 @@ acquire_lock() {
     local owner=
     [[ -r "$LOCK_DIR/pid" ]] && owner=$(<"$LOCK_DIR/pid") || true
     if [[ "$owner" =~ ^[0-9]+$ ]] && kill -0 "$owner" 2>/dev/null; then
-      die "another rewrite is running (pid $owner)"
+      die "$(ui_error another_rewrite "$owner")"
     fi
-    die "lock exists: $LOCK_DIR (remove it only after confirming no rewrite is running)"
+    die "$(ui_error stale_lock "$LOCK_DIR")"
   fi
   printf '%s\n' "$$" >"$LOCK_DIR/pid"
   trap release_lock EXIT
@@ -866,7 +1201,7 @@ read_commit_headers_and_message() {
   local tree parent author committer
 
   git cat-file commit "$oid" >"$raw" ||
-    die "cannot read commit: $oid"
+    die "$(ui_error cannot_read_commit "$oid")"
   split_commit_object "$raw" "$headers" "$message"
 
   COMMIT_TREE=$(awk '$1 == "tree" { print $2; exit }' "$headers")
@@ -879,7 +1214,7 @@ read_commit_headers_and_message() {
   COMMIT_AUTHOR=$author
   COMMIT_COMMITTER=$committer
   [[ -n "$COMMIT_TREE" && -n "$author" && -n "$committer" ]] ||
-    die "malformed commit object: $oid"
+    die "$(ui_error malformed_commit "$oid")"
 }
 
 selected_by_filters() {
@@ -968,7 +1303,7 @@ build_rewrite_plan() {
   local oid
 
   collect_commits >"$graph" ||
-    die "could not enumerate current branch commits"
+    die "$(ui_error enumerate_failed)"
   if [[ "$SELECTION_KIND" == range ]]; then
     if [[ "$SELECTED_FROM" == "$SELECTED_TO" ]]; then
       printf '%s\n' "$SELECTED_FROM" >"$candidates"
@@ -1035,7 +1370,7 @@ build_rewrite_plan() {
     printf '%s %s\n' "$oid" "$is_matched" >>"$plan"
   done <"$graph"
 
-  [[ -s "$plan" ]] || die "no commits matched the selection"
+  [[ -s "$plan" ]] || die "$(ui_error no_matches)"
 }
 
 rewrite_plan() {
@@ -1105,7 +1440,7 @@ rewrite_plan() {
     write_signed_commit "$new_headers" "$signed" "$committer_epoch"
     local new_oid
     new_oid=$(git hash-object -t commit -w --stdin <"$signed") ||
-      die "could not write commit object for $oid"
+      die "$(ui_error write_commit_failed "$oid")"
     printf '%s %s\n' "$oid" "$new_oid" >>"$mapping"
 
     verify_created_commit "$new_oid" "$committer_epoch" "$new_headers"
@@ -1113,7 +1448,7 @@ rewrite_plan() {
     local new_tree
     new_tree=$(git cat-file -p "$new_oid" | awk '$1 == "tree" { print $2; exit }')
     [[ "$new_tree" == "$COMMIT_TREE" ]] ||
-      die "tree changed for $oid"
+      die "$(ui_error tree_changed "$oid")"
     local -a expected_parents=() actual_parents=()
     local parent
     for parent in "${COMMIT_PARENT[@]}"; do
@@ -1128,34 +1463,46 @@ rewrite_plan() {
     done < <(git cat-file -p "$new_oid" |
       awk '$1 == "parent" { print $2 }')
     assert_eq "${expected_parents[*]:-}" "${actual_parents[*]:-}" \
-      "parents for $oid"
+      "$(ui_error label_parents "$oid")"
     assert_eq "$author_epoch" \
       "$(git cat-file -p "$new_oid" |
         awk '$1 == "author" { print $(NF-1); exit }')" \
-      "author epoch"
+      "$(ui_error label_author_epoch)"
     assert_eq "$committer_epoch" \
       "$(git cat-file -p "$new_oid" |
         awk '$1 == "committer" { print $(NF-1); exit }')" \
-      "committer epoch"
+      "$(ui_error label_committer_epoch)"
   done <"$plan"
 
   NEW_HEAD=$(expected_new_head_for_selection "$mapping")
   [[ -n "$NEW_HEAD" ]] ||
-    die "new branch head could not be determined"
+    die "$(ui_error no_new_head)"
 }
 
 print_plan() {
   local mapping="$WORK_DIR/mapping"
-  printf 'Commits to rewrite on %s:\n' "$CURRENT_BRANCH"
+  if [[ "$UI_LANGUAGE" == zh ]]; then
+    printf '将在 %s 上改写以下提交：\n' "$CURRENT_BRANCH"
+  else
+    printf 'Commits to rewrite on %s:\n' "$CURRENT_BRANCH"
+  fi
   local old new
   while read -r old new; do
     local subject
     subject=$(git show -s --format=%s "$new")
     printf '  %.12s..%.12s %s\n' "$old" "$new" "$subject"
   done <"$mapping"
-  printf 'New HEAD candidate: %s\n' "$NEW_HEAD"
-  printf 'Backup: refs/backups/git-recommit-sign/%s\n' "${BACKUP_ID:-<dry-run>}"
-  printf 'No references changed.\n'
+  if [[ "$UI_LANGUAGE" == zh ]]; then
+    printf '新的 HEAD 候选：%s\n' "$NEW_HEAD"
+    printf '备份：refs/backups/git-recommit-sign/%s\n' \
+      "${BACKUP_ID:-<dry-run>}"
+    printf '未修改任何引用。\n'
+  else
+    printf 'New HEAD candidate: %s\n' "$NEW_HEAD"
+    printf 'Backup: refs/backups/git-recommit-sign/%s\n' \
+      "${BACKUP_ID:-<dry-run>}"
+    printf 'No references changed.\n'
+  fi
 }
 
 create_backup() {
@@ -1200,7 +1547,7 @@ create_backup() {
 
   local tree
   tree=$(git hash-object -t blob -w --stdin <"$manifest") ||
-    die "could not write backup manifest"
+    die "$(ui_error write_manifest_failed)"
   printf 'create %s/manifest %s\n' "$base" "$tree" >>"$transaction"
   BACKUP_REF="$base"
 }
@@ -1218,9 +1565,9 @@ create_rewritten_tag() {
   local tagger tagger_epoch tagger_zone signed=0
 
   git cat-file tag "$old_object" >"$raw" ||
-    die "cannot read annotated tag: $ref"
+    die "$(ui_error read_annotated_tag "$ref")"
   tagger=$(awk '$1 == "tagger" { sub(/^tagger /, ""); print; exit }' "$raw")
-  [[ -n "$tagger" ]] || die "annotated tag has no tagger: $ref"
+  [[ -n "$tagger" ]] || die "$(ui_error tag_no_tagger "$ref")"
   tagger_epoch=$(extract_epoch "$tagger")
   tagger_zone=$(extract_zone "$tagger")
 
@@ -1232,7 +1579,7 @@ create_rewritten_tag() {
     perl -0777 -ne \
       'if (/\n(-----BEGIN PGP SIGNATURE-----.*?-----END PGP SIGNATURE-----)(?:\n)?\z/s) { print "$1\n" }' \
       "$raw" >"$signature"
-    [[ -s "$signature" ]] || die "cannot extract tag signature: $ref"
+    [[ -s "$signature" ]] || die "$(ui_error extract_tag_signature "$ref")"
   else
     cp -- "$raw" "$payload"
   fi
@@ -1253,16 +1600,17 @@ create_rewritten_tag() {
 
   local new_oid
   new_oid=$(git hash-object -t tag -w --stdin <"$new_object") ||
-    die "could not write tag object for $ref"
+    die "$(ui_error write_tag_failed "$ref")"
   if [[ "$signed" -eq 1 ]]; then
     if ! git verify-tag --raw "$new_oid" >/dev/null 2>&1 &&
       [[ "$ALLOW_KEY_TIME_CONFLICT" -ne 1 ]]; then
-      die "new tag object did not verify: $ref"
+      die "$(ui_error tag_verify_failed "$ref")"
     fi
     local signed_epoch
     signed_epoch=$(git verify-tag --raw "$new_oid" 2>&1 |
       awk '$2 == "VALIDSIG" { print $5; exit }')
-    assert_eq "$tagger_epoch" "$signed_epoch" "tag signature epoch"
+    assert_eq "$tagger_epoch" "$signed_epoch" \
+      "$(ui_error label_tag_signature_epoch)"
     printf 'update %s %s %s\n' "$ref" "$new_oid" "$old_object" \
       >>"$transaction"
   else
@@ -1289,7 +1637,7 @@ update_references() {
       new_target=$(awk -v old="$target" '$1 == old { print $2; exit }' "$mapping")
       [[ -n "$new_target" ]] || continue
       if [[ "$TAG_POLICY" == abort ]]; then
-        die "tag $ref points to a rewritten commit; use --tag-policy move or keep"
+        die "$(ui_error tag_requires_policy "$ref")"
       fi
       local old_target
       old_target=$(git rev-parse --verify "$ref")
@@ -1323,13 +1671,14 @@ update_references() {
     ) || tag_verify_rc=$?
     if [[ "$tag_verify_rc" -ne 0 ]]; then
       [[ "$ALLOW_KEY_TIME_CONFLICT" -eq 1 ]] ||
-        die "new annotated tag did not verify: $moved_ref"
+        die "$(ui_error tag_verify_failed "$moved_ref")"
       [[ "$tag_verify" == *'[GNUPG:] VALIDSIG '* ]] ||
-        die "GnuPG did not report VALIDSIG for tag $moved_ref: $tag_verify"
+        die "$(ui_error tag_gpg_no_validsig "$moved_ref" "$tag_verify")"
     fi
     signed_epoch=$(printf '%s\n' "$tag_verify" |
       awk '$2 == "VALIDSIG" { print $5; exit }')
-    assert_eq "$tag_epoch" "$signed_epoch" "tag signature epoch"
+    assert_eq "$tag_epoch" "$signed_epoch" \
+      "$(ui_error label_tag_signature_epoch)"
   done <"$tags_requested"
 
   printf 'update %s %s %s\n' "$CURRENT_REF" "$NEW_HEAD" \
@@ -1341,8 +1690,12 @@ update_references() {
     printf 'start\n'
     cat -- "$WORK_DIR/final-transaction"
     printf 'prepare\ncommit\n'
-  } | git update-ref --stdin; then
-    die "reference transaction failed; no references were changed"
+  } | if [[ "$UI_LANGUAGE" == zh ]]; then
+        git update-ref --stdin >/dev/null
+      else
+        git update-ref --stdin
+      fi; then
+    die "$(ui_error ref_transaction_failed)"
   fi
 }
 
@@ -1356,25 +1709,25 @@ restore_backup() {
   fi
 
   [[ "$backup_ref" != *$'\n'* && "$backup_ref" != *' '* ]] ||
-    die "invalid backup id"
+    die "$(ui_error invalid_backup_id)"
   git rev-parse --verify "$backup_ref/manifest^{blob}" >/dev/null 2>&1 ||
-    die "backup manifest not found: $backup_ref"
+    die "$(ui_error backup_manifest_missing "$backup_ref")"
   [[ -n "$(git for-each-ref --format='%(refname)' \
     "$backup_ref/branches/$CURRENT_BRANCH" 2>/dev/null)" ]] ||
-    die "backup does not contain current branch $CURRENT_BRANCH"
+    die "$(ui_error backup_wrong_branch "$CURRENT_BRANCH")"
 
   local manifest="$WORK_DIR/restore-manifest"
   git cat-file blob "$backup_ref/manifest" >"$manifest"
   local manifest_format expected_branch expected_head
   manifest_format=$(awk -F= '$1 == "format" { print $2; exit }' "$manifest")
   [[ "$manifest_format" == 1 ]] ||
-    die "unsupported or missing backup manifest format: ${manifest_format:-<missing>}"
+    die "$(ui_error backup_manifest_format "${manifest_format:-<missing>}")"
   expected_branch=$(awk -F= '$1 == "branch" { print $2; exit }' "$manifest")
   expected_head=$(awk -F= '$1 == "head" { print $2; exit }' "$manifest")
   [[ "$expected_branch" == "$CURRENT_REF" ]] ||
-    die "backup belongs to $expected_branch, not $CURRENT_REF"
+    die "$(ui_error backup_branch_mismatch "$expected_branch" "$CURRENT_REF")"
   [[ "$expected_head" =~ ^[0-9a-f]+$ ]] ||
-    die "backup manifest has invalid head"
+    die "$(ui_error backup_invalid_head)"
 
   local transaction="$WORK_DIR/restore-transaction"
   : >"$transaction"
@@ -1386,7 +1739,7 @@ restore_backup() {
     [[ -n "$backup_tag_ref" ]] || continue
     ref="refs/tags/${backup_tag_ref#"$backup_ref"/tags/}"
     old=$(git rev-parse --verify "$backup_tag_ref" 2>/dev/null) ||
-      die "backup tag ref is missing: $ref"
+      die "$(ui_error backup_tag_missing "$ref")"
     local current_old
     current_old=$(git rev-parse --verify "$ref" 2>/dev/null || true)
     if [[ -n "$current_old" ]]; then
@@ -1401,23 +1754,31 @@ restore_backup() {
     printf 'start\n'
     cat -- "$transaction"
     printf 'prepare\ncommit\n'
-  } | git update-ref --stdin ||
-    die "restore transaction failed; no references were changed"
-  printf 'Restored %s from %s\n' "$CURRENT_REF" "$backup_ref"
+  } | if [[ "$UI_LANGUAGE" == zh ]]; then
+        git update-ref --stdin >/dev/null
+      else
+        git update-ref --stdin
+      fi ||
+    die "$(ui_error restore_failed)"
+  if [[ "$UI_LANGUAGE" == zh ]]; then
+    printf '已从 %s 恢复 %s\n' "$backup_ref" "$CURRENT_REF"
+  else
+    printf 'Restored %s from %s\n' "$CURRENT_REF" "$backup_ref"
+  fi
 }
 
 run_rewrite() {
   [[ "$TAG_POLICY" == move || "$TAG_POLICY" == keep ||
     "$TAG_POLICY" == abort ]] ||
-    usage_error "--tag-policy must be move, keep, or abort"
+    usage_error "$(ui_error tag_policy_invalid)"
   [[ "$MESSAGE_SET" -eq 0 || -z "$MESSAGE_FILE" ]] ||
-    usage_error "--message and --message-file are mutually exclusive"
+    usage_error "$(ui_error message_conflict --message --message-file)"
   [[ "$EDIT_MESSAGES" -eq 0 || "$MESSAGE_SET" -eq 0 ]] ||
-    usage_error "--edit-messages and --message are mutually exclusive"
+    usage_error "$(ui_error message_conflict --edit-messages --message)"
   [[ "$EDIT_MESSAGES" -eq 0 || -z "$MESSAGE_FILE" ]] ||
-    usage_error "--edit-messages and --message-file are mutually exclusive"
+    usage_error "$(ui_error message_conflict --edit-messages --message-file)"
   if [[ -z "$RESTORE_ID" && -z "$SELECTION_KIND" ]]; then
-    usage_error "use --commit <rev>, --range <FROM..TO>, or --all"
+    usage_error "$(ui_error selection_required)"
   fi
 
   preflight_repository
@@ -1443,7 +1804,7 @@ run_rewrite() {
     return
   fi
   [[ "$ASSUME_YES" -eq 1 ]] ||
-    die "non-interactive execution requires --yes"
+    die "$(ui_error yes_required)"
 
   if [[ -n "${GIT_RECOMMIT_SIGN_TEST_BACKUP_ID:-}" ]]; then
     BACKUP_ID=$GIT_RECOMMIT_SIGN_TEST_BACKUP_ID
@@ -1452,7 +1813,7 @@ run_rewrite() {
   fi
   BACKUP_REF="refs/backups/git-recommit-sign/$BACKUP_ID"
   [[ -z "$(git for-each-ref --format='%(refname)' "$BACKUP_REF")" ]] ||
-    die "backup id already exists: $BACKUP_ID"
+    die "$(ui_error backup_exists "$BACKUP_ID")"
 
   create_backup "$WORK_DIR/mapping"
   update_references "$WORK_DIR/mapping"
@@ -1460,16 +1821,16 @@ run_rewrite() {
   local worktree_status
   worktree_status=$(
     git status --porcelain=v1 --untracked-files=all
-  ) || die "could not inspect worktree after update"
+  ) || die "$(ui_error inspect_worktree_failed)"
   [[ "$worktree_status" == "$FULL_WORKTREE_STATUS" ]] ||
-    die "worktree changed unexpectedly after reference update"
+    die "$(ui_error worktree_changed)"
 
-  printf 'Rewrote %s commit(s); new HEAD %s\n' \
-    "$(wc -l <"$WORK_DIR/mapping")" "$NEW_HEAD"
-  printf 'Backup: %s\n' "$BACKUP_REF"
-  printf 'Restore: %s --restore %s\n' "$PROGRAM_NAME" "$BACKUP_ID"
-  printf 'Push: git push --force-with-lease origin %s\n' "$CURRENT_BRANCH"
-  printf 'No command was pushed.\n'
+  printf '%s\n' "$(ui_text rewrote \
+    "$(wc -l <"$WORK_DIR/mapping")" "$NEW_HEAD")"
+  printf '%s\n' "$(ui_text backup "$BACKUP_REF")"
+  printf '%s\n' "$(ui_text restore_command "$PROGRAM_NAME" "$BACKUP_ID")"
+  printf '%s\n' "$(ui_text push_command "$CURRENT_BRANCH")"
+  printf '%s\n' "$(ui_text not_pushed)"
 }
 
 interactive_prompt() {
@@ -1504,14 +1865,16 @@ interactive_choose_range() {
   local choice commit range
   while true; do
     printf '%s\n' \
-      '1) one commit' '2) inclusive range' '3) all commits' \
-      '1) 单个提交' '2) 闭区间' '3) 全部提交' \
-      'b) back' 'q) cancel'
-    printf 'Selection/范围: '
+      "$(ui_text one_commit)" \
+      "$(ui_text inclusive_range)" \
+      "$(ui_text all_commits)" \
+      "$(ui_text back_option)" \
+      "$(ui_text cancel_option)"
+    printf '%s: ' "$(ui_text selection_prompt)"
     IFS= read -r choice || choice=q
     case "$choice" in
       1)
-        interactive_prompt 'Commit/提交' HEAD
+        interactive_prompt "$(ui_text commit_prompt)" HEAD
         case $? in
           2) cancel_and_exit ;;
           1) continue ;;
@@ -1524,7 +1887,7 @@ interactive_choose_range() {
         return 0
         ;;
       2)
-        interactive_prompt 'Range/区间 (FROM..TO)' HEAD~1..HEAD
+        interactive_prompt "$(ui_text range_prompt)" HEAD~1..HEAD
         case $? in
           2) cancel_and_exit ;;
           1) continue ;;
@@ -1545,7 +1908,7 @@ interactive_choose_range() {
         ;;
       b|B) return 1 ;;
       q|Q) cancel_and_exit ;;
-      *) printf 'Invalid selection.\n' >&2 ;;
+      *) printf '%s\n' "$(ui_text invalid_selection)" >&2 ;;
     esac
   done
 }
@@ -1554,53 +1917,53 @@ interactive_collect() {
   local value
   interactive_choose_range || return 1
 
-  interactive_prompt 'Author filter name/筛选作者姓名 (blank=any)' '' ||
+  interactive_prompt "$(ui_text author_filter_name)" '' ||
     { [[ "$INTERACTIVE_CANCELLED" -eq 0 ]] || cancel_and_exit; return 1; }
   AUTHOR_FILTER_NAME=$INTERACTIVE_VALUE
 
-  interactive_prompt 'Author filter email/筛选作者邮箱 (blank=any)' '' ||
+  interactive_prompt "$(ui_text author_filter_email)" '' ||
     { [[ "$INTERACTIVE_CANCELLED" -eq 0 ]] || cancel_and_exit; return 1; }
   AUTHOR_FILTER_EMAIL=$INTERACTIVE_VALUE
 
-  interactive_prompt 'Committer filter name/筛选提交者姓名 (blank=any)' '' ||
+  interactive_prompt "$(ui_text committer_filter_name)" '' ||
     { [[ "$INTERACTIVE_CANCELLED" -eq 0 ]] || cancel_and_exit; return 1; }
   COMMITTER_FILTER_NAME=$INTERACTIVE_VALUE
 
-  interactive_prompt 'Committer filter email/筛选提交者邮箱 (blank=any)' '' ||
+  interactive_prompt "$(ui_text committer_filter_email)" '' ||
     { [[ "$INTERACTIVE_CANCELLED" -eq 0 ]] || cancel_and_exit; return 1; }
   COMMITTER_FILTER_EMAIL=$INTERACTIVE_VALUE
 
-  interactive_prompt 'Author name/作者姓名 (blank=keep)' '' ||
+  interactive_prompt "$(ui_text author_name)" '' ||
     { [[ "$INTERACTIVE_CANCELLED" -eq 0 ]] || cancel_and_exit; return 1; }
   value=$INTERACTIVE_VALUE
   [[ -z "$value" ]] || { AUTHOR_NAME=$value; AUTHOR_NAME_SET=1; }
 
-  interactive_prompt 'Author email/作者邮箱 (blank=keep)' '' ||
+  interactive_prompt "$(ui_text author_email)" '' ||
     { [[ "$INTERACTIVE_CANCELLED" -eq 0 ]] || cancel_and_exit; return 1; }
   value=$INTERACTIVE_VALUE
   [[ -z "$value" ]] || { AUTHOR_EMAIL=$value; AUTHOR_EMAIL_SET=1; }
 
-  interactive_prompt 'Committer name/提交者姓名 (blank=keep)' '' ||
+  interactive_prompt "$(ui_text committer_name)" '' ||
     { [[ "$INTERACTIVE_CANCELLED" -eq 0 ]] || cancel_and_exit; return 1; }
   value=$INTERACTIVE_VALUE
   [[ -z "$value" ]] || { COMMITTER_NAME=$value; COMMITTER_NAME_SET=1; }
 
-  interactive_prompt 'Committer email/提交者邮箱 (blank=keep)' '' ||
+  interactive_prompt "$(ui_text committer_email)" '' ||
     { [[ "$INTERACTIVE_CANCELLED" -eq 0 ]] || cancel_and_exit; return 1; }
   value=$INTERACTIVE_VALUE
   [[ -z "$value" ]] || { COMMITTER_EMAIL=$value; COMMITTER_EMAIL_SET=1; }
 
-  interactive_prompt 'Author date/作者日期 (blank=keep)' '' ||
+  interactive_prompt "$(ui_text author_date)" '' ||
     { [[ "$INTERACTIVE_CANCELLED" -eq 0 ]] || cancel_and_exit; return 1; }
   value=$INTERACTIVE_VALUE
   AUTHOR_DATE=$value
 
-  interactive_prompt 'Committer date/提交者日期 (blank=keep)' '' ||
+  interactive_prompt "$(ui_text committer_date)" '' ||
     { [[ "$INTERACTIVE_CANCELLED" -eq 0 ]] || cancel_and_exit; return 1; }
   value=$INTERACTIVE_VALUE
   COMMITTER_DATE=$value
 
-  interactive_prompt 'Message/消息 (blank=keep)' '' ||
+  interactive_prompt "$(ui_text message)" '' ||
     { [[ "$INTERACTIVE_CANCELLED" -eq 0 ]] || cancel_and_exit; return 1; }
   value=$INTERACTIVE_VALUE
   if [[ -n "$value" ]]; then
@@ -1608,12 +1971,12 @@ interactive_collect() {
     MESSAGE_SET=1
   fi
 
-  interactive_prompt 'Message file/消息文件 (blank=none)' '' ||
+  interactive_prompt "$(ui_text message_file)" '' ||
     { [[ "$INTERACTIVE_CANCELLED" -eq 0 ]] || cancel_and_exit; return 1; }
   value=$INTERACTIVE_VALUE
   MESSAGE_FILE=$value
 
-  interactive_prompt 'Edit each matched message? [y/N]' N ||
+  interactive_prompt "$(ui_text edit_messages)" N ||
     { [[ "$INTERACTIVE_CANCELLED" -eq 0 ]] || cancel_and_exit; return 1; }
   value=$INTERACTIVE_VALUE
   if [[ "$value" =~ ^[Yy]$ ]]; then
@@ -1622,21 +1985,21 @@ interactive_collect() {
     EDIT_MESSAGES=0
   fi
 
-  interactive_prompt 'Per-commit TSV map/逐提交映射 (blank=none)' '' ||
+  interactive_prompt "$(ui_text map_file)" '' ||
     { [[ "$INTERACTIVE_CANCELLED" -eq 0 ]] || cancel_and_exit; return 1; }
   MAP_FILE=$INTERACTIVE_VALUE
 
-  interactive_prompt 'Signing key/签名密钥 (blank=config)' '' ||
+  interactive_prompt "$(ui_text signing_key)" '' ||
     { [[ "$INTERACTIVE_CANCELLED" -eq 0 ]] || cancel_and_exit; return 1; }
   value=$INTERACTIVE_VALUE
   SIGNING_KEY=$value
 
-  interactive_prompt 'Tag policy/标签策略 (move/keep/abort)' move ||
+  interactive_prompt "$(ui_text tag_policy)" move ||
     { [[ "$INTERACTIVE_CANCELLED" -eq 0 ]] || cancel_and_exit; return 1; }
   value=$INTERACTIVE_VALUE
   TAG_POLICY=$value
 
-  interactive_prompt 'Allow GPG key time conflict? [y/N]' N ||
+  interactive_prompt "$(ui_text allow_time_conflict)" N ||
     { [[ "$INTERACTIVE_CANCELLED" -eq 0 ]] || cancel_and_exit; return 1; }
   value=$INTERACTIVE_VALUE
   if [[ "$value" =~ ^[Yy]$ ]]; then
@@ -1645,7 +2008,7 @@ interactive_collect() {
     ALLOW_KEY_TIME_CONFLICT=0
   fi
 
-  interactive_prompt 'Dry run? [y/N]' N ||
+  interactive_prompt "$(ui_text dry_run)" N ||
     { [[ "$INTERACTIVE_CANCELLED" -eq 0 ]] || cancel_and_exit; return 1; }
   value=$INTERACTIVE_VALUE
   if [[ "$value" =~ ^[Yy]$ ]]; then
@@ -1655,7 +2018,7 @@ interactive_collect() {
   fi
 
   if [[ "$DRY_RUN" -eq 0 ]]; then
-    interactive_prompt 'Proceed with rewrite? [y/N]' N ||
+    interactive_prompt "$(ui_text proceed)" N ||
       { [[ "$INTERACTIVE_CANCELLED" -eq 0 ]] || cancel_and_exit; return 1; }
     value=$INTERACTIVE_VALUE
     [[ "$value" =~ ^[Yy]$ ]] || cancel_and_exit
@@ -1663,7 +2026,24 @@ interactive_collect() {
   fi
 }
 
+select_language() {
+  local language
+  printf '%s\n' 'Select language / 选择语言:' '1) English' '2) 中文'
+  printf 'Language/语言 [1]: '
+  IFS= read -r language || language=q
+  case "$language" in
+    ''|1) UI_LANGUAGE=en ;;
+    2) UI_LANGUAGE=zh ;;
+    q|Q) cancel_and_exit ;;
+    *)
+      printf 'Invalid language. / 无效语言。\n' >&2
+      return 1
+      ;;
+  esac
+}
+
 interactive_main() {
+  select_language || return 1
   SELECTION_KIND=
   SELECTION_VALUE=
   SELECTED_FROM=
@@ -1693,12 +2073,9 @@ interactive_main() {
   ASSUME_YES=0
   EDIT_MESSAGES=0
   RESTORE_ID=
-  printf '%s\n' \
-    'Git commit recommit and OpenPGP re-sign' \
-    'Git 提交批量改写与 OpenPGP 重签' \
-    'q) cancel/取消' 'b) back/返回'
+  printf '%s\n' "$(ui_text title)"
   while ! interactive_collect; do
-    printf 'Returned to the main menu.\n'
+    printf '%s\n' "$(ui_text returned_to_menu)"
   done
   run_rewrite
 }
@@ -1713,6 +2090,9 @@ main() {
   if [[ "${HELP_REQUESTED:-0}" -eq 1 ]]; then
     usage
     return
+  fi
+  if [[ -n "$RESTORE_ID" ]]; then
+    select_language || return 1
   fi
   run_rewrite
 }
