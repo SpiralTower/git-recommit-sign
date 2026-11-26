@@ -1157,7 +1157,14 @@ preflight_signing() {
   ) || die "$(ui_error secret_key_missing "$requested")"
   fingerprints=$(
     printf '%s\n' "$key_status" |
-      awk -F: '$1 == "fpr" { print $10 }'
+      awk -F: '
+        $1 == "sec" { await_primary_fpr = 1; next }
+        $1 == "ssb" { await_primary_fpr = 0; next }
+        await_primary_fpr && $1 == "fpr" {
+          print $10
+          await_primary_fpr = 0
+        }
+      '
   )
   key_count=$(printf '%s\n' "$fingerprints" | awk 'NF { count++ } END { print count + 0 }')
   [[ "$key_count" -gt 0 ]] ||
